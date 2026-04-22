@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anime Guess - Gamedle Zoom Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #000000;
+            --text-color: #ffffff;
+            --font-pixel: 'Press Start 2P', cursive;
+            --gamedle-orange: #ff8c00;
+        }
+
+        body {
+            font-family: var(--font-pixel);
+            margin: 0;
+            background-color: var(--bg-dark);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* FONDO Y DEGRADADO */
+        .background-collage {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: -2;
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            opacity: 0.15; /* Un poco más oscuro para que el zoom resalte */
+        }
+        .background-collage img { width: 100%; height: 180px; object-fit: cover; }
+
+        .gradient-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: -1;
+            background: radial-gradient(circle, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.9) 80%, rgba(0,0,0,1) 100%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+            z-index: 10;
+        }
+
+        .header-title {
+            color: var(--gamedle-orange);
+            font-size: 24px;
+            margin-bottom: 25px;
+            text-shadow: 3px 3px 0px #000;
+        }
+
+        /* IMAGEN Y LÓGICA DE ZOOM */
+        .image-outer-wrapper {
+            position: relative;
+            width: 280px;
+            height: 380px;
+            margin: 0 auto 20px;
+            cursor: crosshair; /* Cursor de precisión */
+        }
+
+        .image-container {
+            width: 100%;
+            height: 100%;
+            border: 4px solid #fff;
+            background: #000;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        #anime-img { 
+            width: 100%; height: 100%; 
+            object-fit: cover; 
+            image-rendering: pixelated; /* La imagen base sigue pixelada */
+        }
+
+        .revealed #anime-img { image-rendering: auto !important; }
+
+        /* EL CÍRCULO DE ZOOM (LENTE) */
+        .zoom-lens {
+            position: absolute;
+            border: 3px solid #fff;
+            border-radius: 50%;
+            width: 100px; /* Tamaño del círculo de zoom */
+            height: 100px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.8);
+            display: none; /* Oculto por defecto */
+            pointer-events: none; /* El ratón pasa a través de él */
+            background-repeat: no-repeat;
+            z-index: 100;
+        }
+
+        /* BUSCADOR */
+        .autocomplete-wrapper {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        input {
+            width: 90%;
+            padding: 14px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            border: none;
+            background: #fff;
+            color: #000;
+            outline: none;
+        }
+
+        /* BOTONES */
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            font-family: var(--font-pixel);
+            font-size: 10px;
+            padding: 15px 25px;
+            border: 3px solid #000;
+            border-radius: 4px;
+            cursor: pointer;
+            color: white;
+            text-transform: uppercase;
+            box-shadow: inset -4px -4px 0px rgba(0,0,0,0.3);
+        }
+
+        .btn-omit { background: linear-gradient(to bottom, #ff8c00 0%, #e65c00 100%); }
+        .btn-guess { background: linear-gradient(to bottom, #0099ff 0%, #0066cc 100%); flex-grow: 0.4; }
+
+        /* VIDAS */
+        .lives-container { margin-top: 25px; }
+        .hearts { color: #ff4757; font-size: 22px; margin-bottom: 10px; letter-spacing: 5px; }
+        .info-text { font-size: 9px; color: #888; text-transform: uppercase; }
+
+        /* SUGERENCIAS */
+        .autocomplete-items {
+            position: absolute;
+            background: white;
+            color: black;
+            width: 90%;
+            left: 5%;
+            z-index: 100;
+            text-align: left;
+            font-family: Arial;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .autocomplete-items div { padding: 12px; cursor: pointer; border-bottom: 1px solid #eee; }
+    </style>
+</head>
+<body>
+
+    <div class="background-collage" id="bg-collage"></div>
+    <div class="gradient-overlay"></div>
+
+    <div class="container">
+        <h1 class="header-title">ANIME GUESS</h1>
+
+        <div id="message" style="font-size: 10px; margin-bottom: 15px; color: #ffeb3b; height: 12px; text-transform: uppercase;"></div>
+        
+        <div class="image-outer-wrapper" id="zoom-area">
+            <div class="zoom-lens" id="zoom-lens"></div> <div class="image-container" id="main-image-container">
+                <img id="anime-img" src="">
+            </div>
+        </div>
+
+        <div class="autocomplete-wrapper">
+            <input id="myInput" type="text" placeholder="BUSCAR ANIME..." autocomplete="off">
+            <div id="autocomplete-list" class="autocomplete-items"></div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn btn-omit" onclick="nextLevel()">Omitir</button>
+            <button class="btn btn-guess" onclick="checkGuess()">ADIVINAR</button>
+        </div>
+
+        <div class="lives-container">
+            <div class="hearts" id="hearts-display">❤️❤️❤️❤️❤️❤️</div>
+            <p class="info-text" id="status-text">6 VIDAS RESTANTES</p>
+        </div>
+    </div>
+
+    <script>
+        const animes = [
+            { name: "Dragon Ball Z", img: "https://m.media-amazon.com/images/I/71Y086rD76L._AC_SL1200_.jpg" },
+            { name: "Akira", img: "https://m.media-amazon.com/images/I/81Xm6uN6f-L._AC_SY679_.jpg" },
+            { name: "Naruto", img: "https://m.media-amazon.com/images/I/91pYIAn8YIL._AC_SL1500_.jpg" },
+            { name: "Sailor Moon", img: "https://m.media-amazon.com/images/I/81Wn26pByiL._AC_SL1500_.jpg" },
+            { name: "One Piece", img: "https://m.media-amazon.com/images/I/81SruatI7-L._AC_SL1500_.jpg" },
+            { name: "Evangelion", img: "https://m.media-amazon.com/images/I/71D0Y7-ZfXL._AC_SL1235_.jpg" }
+        ];
+
+        let currentAnime;
+        let lives = 6;
+        let gameOver = false;
+
+        const input = document.getElementById("myInput");
+        const listContainer = document.getElementById("autocomplete-list");
+        const heartsDisplay = document.getElementById("hearts-display");
+        const statusText = document.getElementById("status-text");
+
+        // Elementos para el ZOOM
+        const zoomArea = document.getElementById("zoom-area");
+        const zoomLens = document.getElementById("zoom-lens");
+        const mainImageContainer = document.getElementById("main-image-container");
+
+        function createBackground() {
+            const bg = document.getElementById("bg-collage");
+            bg.innerHTML = "";
+            for(let i=0; i<60; i++) {
+                const img = document.createElement("img");
+                img.src = animes[Math.floor(Math.random() * animes.length)].img;
+                bg.appendChild(img);
+            }
+        }
+
+        input.addEventListener("input", function() {
+            if(gameOver) return;
+            const val = this.value;
+            listContainer.innerHTML = "";
+            if (!val) return;
+            animes.filter(a => a.name.toLowerCase().includes(val.toLowerCase())).forEach(anime => {
+                const div = document.createElement("div");
+                div.innerText = anime.name;
+                div.onclick = () => { input.value = anime.name; listContainer.innerHTML = ""; };
+                listContainer.appendChild(div);
+            });
+        });
+
+        function updateHearts() {
+            heartsDisplay.innerText = "❤️".repeat(lives) + "🖤".repeat(6 - lives);
+            statusText.innerText = `${lives} VIDAS RESTANTES`;
+            if(lives <= 0) endGame("GAME OVER");
+        }
+
+        function endGame(msg) {
+            gameOver = true;
+            document.getElementById("message").innerText = msg;
+            mainImageContainer.classList.add("revealed"); // Revelar imagen base
+            zoomLens.style.display = "none"; // Ocultar el zoom lens al terminar
+        }
+
+        // LÓGICA DEL ZOOM LENS
+        function initZoom() {
+            const img = document.getElementById("anime-img");
+            
+            // Factor de aumento (2x en este caso, igual que Gamedle)
+            const zoomLevel = 2; 
+
+            zoomArea.addEventListener("mousemove", moveLens);
+            zoomArea.addEventListener("mouseenter", showLens);
+            zoomArea.addEventListener("mouseleave", hideLens);
+
+            function showLens() { if(!gameOver) zoomLens.style.display = "block"; }
+            function hideLens() { zoomLens.style.display = "none"; }
+
+            function moveLens(e) {
+                if(gameOver) return;
+
+                // Obtener posición del ratón relativa a la imagen
+                const pos = getCursorPos(e);
+                let x = pos.x;
+                let y = pos.y;
+
+                // Asegurar que el lente no salga de la imagen
+                const lensWidth = zoomLens.offsetWidth;
+                const lensHeight = zoomLens.offsetHeight;
+                const imgWidth = zoomArea.offsetWidth;
+                const imgHeight = zoomArea.offsetHeight;
+
+                // Limitar X e Y
+                if (x > imgWidth - lensWidth / 2) { x = imgWidth - lensWidth / 2; }
+                if (x < lensWidth / 2) { x = lensWidth / 2; }
+                if (y > imgHeight - lensHeight / 2) { y = imgHeight - lensHeight / 2; }
+                if (y < lensHeight / 2) { y = lensHeight / 2; }
+
+                // Posicionar el lente (centrado en el cursor)
+                zoomLens.style.left = (x - lensWidth / 2) + "px";
+                zoomLens.style.top = (y - lensHeight / 2) + "px";
+
+                // ESTABLECER EL FONDO DEL LENTE (La imagen en HD con zoom)
+                zoomLens.style.backgroundImage = `url('${currentAnime.img}')`;
+                
+                // Calcular la posición del fondo para que coincida con el zoom
+                const backgroundX = -((x * zoomLevel) - lensWidth / 2 + 3); // El +3 es por el borde
+                const backgroundY = -((y * zoomLevel) - lensHeight / 2 + 3);
+
+                zoomLens.style.backgroundPosition = `${backgroundX}px ${backgroundY}px`;
+                
+                // Ajustar el tamaño del fondo para que coincida con el zoomLevel
+                zoomLens.style.backgroundSize = `${imgWidth * zoomLevel}px ${imgHeight * zoomLevel}px`;
+            }
+
+            function getCursorPos(e) {
+                const rect = zoomArea.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+            }
+        }
+
+        function nextLevel() {
+            lives = 6;
+            gameOver = false;
+            updateHearts();
+            mainImageContainer.classList.remove("revealed");
+            currentAnime = animes[Math.floor(Math.random() * animes.length)];
+            const img = document.getElementById("anime-img");
+            img.src = currentAnime.img;
+            input.value = "";
+            document.getElementById("message").innerText = "";
+        }
+
+        function checkGuess() {
+            if(gameOver) return;
+            const userGuess = input.value.trim().toLowerCase();
+            if (userGuess === currentAnime.name.toLowerCase()) {
+                endGame("¡CORRECTO!");
+                document.getElementById("message").style.color = "#4cd137";
+            } else {
+                lives--;
+                document.getElementById("message").innerText = "INCORRECTO";
+                document.getElementById("message").style.color = "#ff4757";
+                updateHearts();
+                input.value = "";
+            }
+        }
+
+        document.addEventListener("click", (e) => { if (e.target !== input) listContainer.innerHTML = ""; });
+        window.onload = () => { createBackground(); nextLevel(); initZoom(); };
+    </script>
+</body>
+</html>
